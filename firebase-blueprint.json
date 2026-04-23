@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A match prediction order.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "expired"] },
+        "text": { "type": "string" },
+        "senderNumber": { "type": "string" },
+        "fileName": { "type": "string" },
+        "code": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "displayId", "status", "text", "createdAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "A list of admin users by UID",
+      "type": "object",
+      "properties": {
+        "createdAt": { "type": "number" }
+      },
+      "required": ["createdAt"]
+    }
+  },
+  "firestore": {
+    "orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Orders created by users."
+    },
+    "admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Users holding admin privileges."
+    }
+  }
+}
