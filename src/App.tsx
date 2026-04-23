@@ -6,10 +6,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, googleProvider } from './firebase';
-import { signInWithPopup, onAuthStateChanged, signOut, User as FirebaseUser } from 'firebase/auth';
+import { signInWithPopup, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 
-type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'orders' | 'admin_login';
+type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'orders' | 'admin_login' | 'auth';
 
 interface Order {
   id: string;
@@ -46,14 +46,31 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
+  // Email/Password Auth State
+  const [authIdentifier, setAuthIdentifier] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authView, setAuthView] = useState<'options' | 'form'>('options');
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+      const localUserStr = localStorage.getItem('temp_user');
+      
       if (currentUser) {
+        setUser(currentUser);
         // Check if admin
         const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
         setIsAdmin(adminDoc.exists() || currentUser.email === 'ahmedslman787878@gmail.com');
+      } else if (localUserStr) {
+        try {
+          setUser(JSON.parse(localUserStr));
+        } catch {
+          setUser(null);
+        }
+        setIsAdmin(false);
       } else {
+        setUser(null);
         setIsAdmin(false);
       }
       setAuthLoading(false);
@@ -99,8 +116,44 @@ export default function App() {
     }
   };
 
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    if (!authIdentifier || !authPassword) {
+      setAuthError('يرجى ملء جميع الحقول');
+      return;
+    }
+    
+    // Auto-format standard usernames to a dummy email for Local requirement
+    const finalEmail = authIdentifier.includes('@') ? authIdentifier : `${authIdentifier.trim()}@sportspredict.app`;
+
+    try {
+      // Mock / Temporary Info Auth as requested
+      const tempUser = {
+        uid: 'local_' + authIdentifier.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Date.now(),
+        email: finalEmail,
+        displayName: authIdentifier,
+        isAnonymous: false,
+      };
+
+      // Save to local storage for persistence
+      localStorage.setItem('temp_user', JSON.stringify(tempUser));
+      setUser(tempUser as FirebaseUser);
+      setIsAdmin(false); // Default to not admin for local temp
+      
+      setAuthIdentifier('');
+      setAuthPassword('');
+      setCurrentScreen('home');
+    } catch (error: any) {
+      console.error("Local Auth Error:", error);
+      setAuthError('حدث خطأ أثناء حفظ المعلومات المؤقتة.');
+    }
+  };
+
   const handleSignOut = () => {
+    localStorage.removeItem('temp_user');
     signOut(auth);
+    setUser(null);
     setCurrentScreen('home');
   };
 
@@ -243,7 +296,7 @@ export default function App() {
             )}
 
             {!user ? (
-               <button onClick={handleSignIn} className="flex items-center gap-1.5 bg-white hover:bg-gray-100 text-slate-900 shadow-lg px-2.5 py-1.5 rounded-full transition-all shrink-0 hover:scale-[1.02] active:scale-95 border border-amber-500/20">
+               <button onClick={() => setCurrentScreen('auth')} className="flex items-center gap-1.5 bg-white hover:bg-gray-100 text-slate-900 shadow-lg px-2.5 py-1.5 rounded-full transition-all shrink-0 hover:scale-[1.02] active:scale-95 border border-amber-500/20">
                  <svg width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
                    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
                    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
@@ -654,6 +707,140 @@ export default function App() {
               </motion.div>
             )}
 
+            {/* --- AUTH SCREEN --- */}
+            {currentScreen === 'auth' && (
+              <motion.div 
+                key="auth"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="p-6 flex flex-col justify-center min-h-[500px]"
+              >
+                <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl w-full max-w-sm mx-auto relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full translate-x-1/4 -translate-y-1/2" />
+                  
+                  <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mx-auto mb-6 relative z-10">
+                    <User size={32} className="text-amber-50" />
+                  </div>
+
+                  {authView === 'options' ? (
+                    <div className="flex flex-col gap-4 relative z-10 w-full mt-4">
+                      <button 
+                        onClick={() => {
+                          setIsSignUp(true);
+                          setAuthView('form');
+                          setAuthError('');
+                        }}
+                        className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg text-lg flex items-center justify-center gap-2"
+                      >
+                         إنشاء حساب
+                      </button>
+
+                      <button 
+                        onClick={() => {
+                          setIsSignUp(false);
+                          setAuthView('form');
+                          setAuthError('');
+                        }}
+                        className="w-full py-4 bg-slate-800 text-amber-500 font-bold rounded-2xl border border-amber-500/30 hover:bg-slate-700 transition-all text-lg flex items-center justify-center gap-2 mt-2"
+                      >
+                         تسجيل الدخول
+                      </button>
+
+                      <div className="flex items-center gap-2 my-2">
+                         <div className="h-px bg-slate-800 flex-1"></div>
+                         <span className="text-xs text-slate-500 font-bold">أو</span>
+                         <div className="h-px bg-slate-800 flex-1"></div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          handleSignIn();
+                          setCurrentScreen('home');
+                        }}
+                        className="w-full py-4 bg-white hover:bg-gray-100 text-slate-900 font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-md text-lg"
+                      >
+                        <svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+                          <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+                          <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+                          <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+                        </svg>
+                        ربط جوجل
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => setAuthView('options')} 
+                        className="absolute top-6 left-6 text-slate-400 hover:text-white z-20 bg-slate-800 p-2 rounded-full"
+                      >
+                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      
+                      <h2 className="text-2xl font-black text-center mb-6 text-white relative z-10">
+                        {isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
+                      </h2>
+
+                      <form onSubmit={handleEmailAuth} className="flex flex-col gap-4 relative z-10" autoComplete="off">
+                        {authError && (
+                          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl text-center">
+                            {authError}
+                          </div>
+                        )}
+                        
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-400">اسم المستخدم (أو البريد)</label>
+                          <input 
+                            type="text" 
+                            value={authIdentifier}
+                            onChange={(e) => setAuthIdentifier(e.target.value)}
+                            placeholder="أدخل اسمك أو بريدك"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                            required
+                            autoComplete="off"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-slate-400">كلمة المرور</label>
+                          <input 
+                            type="password" 
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            placeholder="••••••••"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
+                            required
+                            autoComplete="new-password"
+                          />
+                        </div>
+
+                        <button 
+                          type="submit"
+                          className="w-full mt-2 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
+                        >
+                          {isSignUp ? 'إنشاء الحساب' : 'دخول'}
+                        </button>
+                      </form>
+                      
+                      <p className="text-center mt-6 text-sm text-slate-400 relative z-10">
+                        {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟'}{' '}
+                        <button 
+                          onClick={() => {
+                            setIsSignUp(!isSignUp);
+                            setAuthError('');
+                          }}
+                          className="text-amber-500 font-bold hover:underline"
+                        >
+                          {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب'}
+                        </button>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
           </AnimatePresence>
         </main>
 
@@ -680,7 +867,7 @@ export default function App() {
               label="أنا" 
               isActive={currentScreen === 'admin_dashboard'} 
               onClick={() => {
-                 if (!user) handleSignIn();
+                 if (!user) setCurrentScreen('auth');
                  else if (isAdmin) setCurrentScreen('admin_dashboard');
               }} 
             />
@@ -708,7 +895,7 @@ export default function App() {
               <button 
                 onClick={() => {
                   setShowLoginPrompt(false);
-                  handleSignIn();
+                  setCurrentScreen('auth');
                 }}
                 className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
               >
