@@ -327,6 +327,14 @@ export default function App() {
                     </p>
                   </button>
                 </div>
+                
+                <div className="mt-2 text-center flex items-center justify-center gap-2">
+                  <div className="h-px bg-slate-800 flex-1"></div>
+                  <span className="text-amber-500 font-bold text-xs bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-full">
+                    🇪🇬 محللين مصريين
+                  </span>
+                  <div className="h-px bg-slate-800 flex-1"></div>
+                </div>
               </motion.div>
             )}
 
