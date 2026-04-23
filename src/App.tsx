@@ -242,14 +242,14 @@ export default function App() {
             )}
 
             {!user ? (
-               <button onClick={handleSignIn} className="flex items-center gap-2 bg-white hover:bg-gray-100 text-slate-900 shadow-lg px-4 py-2 rounded-full transition-all shrink-0 hover:scale-[1.02] active:scale-95 border border-amber-500/20">
-                 <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+               <button onClick={handleSignIn} className="flex items-center gap-1.5 bg-white hover:bg-gray-100 text-slate-900 shadow-lg px-2.5 py-1.5 rounded-full transition-all shrink-0 hover:scale-[1.02] active:scale-95 border border-amber-500/20">
+                 <svg width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
                    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
                    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
                    <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
                    <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
                  </svg>
-                 <span className="text-sm font-black tracking-tight" style={{ paddingTop: '2px' }}>تسجيل بثواني</span>
+                 <span className="text-[11px] font-black tracking-tight" style={{ paddingTop: '1px' }}>دخول</span>
                </button>
             ) : (
                <button onClick={handleSignOut} className="flex items-center gap-1.5 p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 rounded-full text-amber-500 transition-colors shrink-0">
@@ -362,8 +362,21 @@ export default function App() {
                   <div className="flex flex-col gap-6">
                     <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800">
                       <p className="text-xs text-slate-500 mb-2">رقم التحويل (محفظة الكترونية)</p>
-                      <div className="text-2xl font-mono font-bold text-center text-emerald-400 tracking-wider">
-                        01080379299
+                      <div className="flex items-center justify-between bg-slate-900 rounded-2xl p-2 border border-slate-800/50">
+                        <div className="text-xl sm:text-2xl font-mono font-bold text-center text-emerald-400 tracking-wider flex-1 pl-2">
+                          01080379299
+                        </div>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText('01080379299');
+                            alert('تم النسخ بنجاح');
+                          }}
+                          className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl transition-colors shrink-0"
+                          title="نسخ الرقم"
+                        >
+                          <span className="text-xs font-bold">نسخ</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        </button>
                       </div>
                     </div>
 
