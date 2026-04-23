@@ -9,7 +9,7 @@ import { auth, db, googleProvider } from './firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 
-type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'orders' | 'admin_login' | 'auth';
+type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'user_dashboard' | 'orders' | 'admin_login' | 'auth';
 
 interface Order {
   id: string;
@@ -628,6 +628,48 @@ export default function App() {
               </motion.div>
             )}
 
+            {/* --- USER DASHBOARD --- */}
+            {currentScreen === 'user_dashboard' && user && !isAdmin && !isLocalAdmin && (
+              <motion.div 
+                key="user_dashboard"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="p-6 flex flex-col justify-center min-h-[500px]"
+              >
+                <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 shadow-2xl w-full max-w-sm mx-auto relative overflow-hidden flex flex-col items-center">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full translate-x-1/4 -translate-y-1/2" />
+                  
+                  <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-500/20 mb-6 relative z-10 border-4 border-slate-950">
+                    <User size={40} className="text-amber-50" />
+                  </div>
+                  
+                  <h2 className="text-2xl font-black mb-2 text-white relative z-10 text-center">
+                    {user.displayName || user.email?.split('@')[0]}
+                  </h2>
+                  <p className="text-slate-400 text-sm mb-8">{user.email?.includes('@sportspredict.app') ? 'حساب محلي' : user.email}</p>
+
+                  <div className="w-full space-y-3 relative z-10">
+                    <button 
+                      onClick={() => setCurrentScreen('orders')}
+                      className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-md border border-slate-700/50"
+                    >
+                      <ReceiptText size={20} className="text-amber-500" />
+                      طلباتي السابقة
+                    </button>
+
+                    <button 
+                      onClick={handleSignOut}
+                      className="w-full py-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-md border border-red-500/20 mt-4"
+                    >
+                      <LogOut size={20} />
+                      تسجيل الخروج
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* --- ORDERS SCREEN --- */}
             {currentScreen === 'orders' && (
               <motion.div 
@@ -865,10 +907,11 @@ export default function App() {
             <NavButton 
               icon={<User size={22} />} 
               label="أنا" 
-              isActive={currentScreen === 'admin_dashboard'} 
+              isActive={currentScreen === 'admin_dashboard' || currentScreen === 'user_dashboard'} 
               onClick={() => {
                  if (!user) setCurrentScreen('auth');
-                 else if (isAdmin) setCurrentScreen('admin_dashboard');
+                 else if (isAdmin || isLocalAdmin) setCurrentScreen('admin_dashboard');
+                 else setCurrentScreen('user_dashboard');
               }} 
             />
           </nav>
