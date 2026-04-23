@@ -44,6 +44,7 @@ export default function App() {
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -105,7 +106,7 @@ export default function App() {
 
   const handlePredictionClick = (type: 'cumulative' | 'individual') => {
     if (!user) {
-      alert('يجب تسجيل الدخول أولاً');
+      setShowLoginPrompt(true);
       return;
     }
     setSelectedPrediction(type);
@@ -686,6 +687,43 @@ export default function App() {
           </nav>
         </div>
       </div>
+
+      {showLoginPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-slate-900 border border-slate-700/50 p-6 rounded-[2rem] shadow-2xl max-w-sm w-full text-center relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mx-auto mb-4 relative z-10">
+              <User size={32} className="text-amber-50" />
+            </div>
+            <h3 className="text-xl font-black mb-2 text-white relative z-10">عذراً، يجب التسجيل أولاً</h3>
+            <p className="text-slate-400 text-sm mb-6 relative z-10 leading-relaxed">
+              قم بتسجيل الدخول بحساب جوجل الخاص بك لتتمكن من الوصول للتوقعات.
+            </p>
+            <div className="flex flex-col gap-3 relative z-10">
+              <button 
+                onClick={() => {
+                  setShowLoginPrompt(false);
+                  handleSignIn();
+                }}
+                className="w-full py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
+              >
+                اذهب للتسجيل
+              </button>
+              <button 
+                onClick={() => setShowLoginPrompt(false)}
+                className="w-full py-3 bg-slate-800 text-slate-300 font-bold rounded-xl hover:bg-slate-700 transition-all border border-slate-700 hover:text-white"
+              >
+                إلغاء
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
