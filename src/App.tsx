@@ -1180,10 +1180,18 @@ export default function App() {
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-[1rem] flex flex-col items-center justify-center border mx-auto mb-4 border-emerald-500/30">
                       <Wallet size={30} className="text-emerald-400" />
                     </div>
-                    <h4 className="text-slate-400 text-sm font-bold mb-1">رصيدي القابل للسحب</h4>
-                    <p className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
-                      {affiliateData?.balance} <span className="text-lg text-emerald-400">ج.م</span>
-                    </p>
+                    <h4 className="text-slate-400 text-sm font-bold mb-3">رصيدي القابل للسحب</h4>
+                    <div className="flex items-center justify-center gap-4">
+                      <p className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+                        {affiliateData?.balance || 0} <span className="text-lg text-emerald-400">ج.م</span>
+                      </p>
+                      <button 
+                        onClick={() => alert('الرجاء التواصل مع الدعم لطلب سحب الرصيد')}
+                        className="bg-emerald-500 hover:bg-emerald-600 border border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] px-5 py-2 rounded-xl text-sm font-bold transition-all"
+                      >
+                        سحب
+                      </button>
+                    </div>
                   </div>
 
                   <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] shadow-xl">
