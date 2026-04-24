@@ -292,7 +292,10 @@ export default function App() {
 
   const handleJoinAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !affiliateName || !affiliatePhone) return;
+    if (!user || !affiliateName || !affiliatePhone) {
+      alert('الرجاء التأكد من تسجيل الدخول وإدخال جميع البيانات');
+      return;
+    }
     try {
       await setDoc(doc(db, 'affiliates', user.uid), {
         userId: user.uid,
@@ -302,6 +305,7 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       setCurrentScreen('affiliate_dashboard');
+      alert('تم التسجيل بنجاح والانضمام كشريك!');
     } catch (e: any) {
       console.error(e);
       alert('حدث خطأ أثناء الانضمام: ' + (e.message || ''));
@@ -327,14 +331,26 @@ export default function App() {
       });
 
       if (orderToApprove && orderToApprove.affiliateId) {
-        // Query the affiliate doc (support both new doc ID format and old format)
-        const affQuery = query(collection(db, 'affiliates'), where('userId', '==', orderToApprove.affiliateId));
-        const affSnap = await getDocs(affQuery);
-        if (!affSnap.empty) {
-          const affDocRef = doc(db, 'affiliates', affSnap.docs[0].id);
-          await updateDoc(affDocRef, {
-            balance: increment(25)
-          });
+        try {
+          const directAffDocRef = doc(db, 'affiliates', orderToApprove.affiliateId);
+          const directAffDocSnap = await getDoc(directAffDocRef);
+          if (directAffDocSnap.exists()) {
+            await updateDoc(directAffDocRef, {
+              balance: increment(25)
+            });
+          } else {
+            // Support older affiliate docs that didn't use user.uid as doc ID
+            const affQuery = query(collection(db, 'affiliates'), where('userId', '==', orderToApprove.affiliateId));
+            const affSnap = await getDocs(affQuery);
+            if (!affSnap.empty) {
+              const affDocRef = doc(db, 'affiliates', affSnap.docs[0].id);
+              await updateDoc(affDocRef, {
+                balance: increment(25)
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error updating affiliate balance:', err);
         }
       }
 
