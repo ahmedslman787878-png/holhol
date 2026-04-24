@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://aesthetic-otter-c9f7e3.netlify.app/sitemap.xml

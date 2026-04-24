@@ -2,14 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu, User, Lock, Trophy, Gamepad2, Ticket, Clock,
   Upload, CheckCircle, Home as HomeIcon, BarChart3, ReceiptText, 
-  CircleUserRound, ShieldBan, FileImage, ShieldCheck, BadgeCheck, AlertCircle, Check, LogOut, Copy
+  CircleUserRound, ShieldBan, FileImage, ShieldCheck, BadgeCheck, AlertCircle, Check, LogOut, Copy, Headset,
+  Briefcase, Link as LinkIcon, Wallet, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, googleProvider } from './firebase';
 import { signInWithPopup, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
-import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy, increment, getDocs } from 'firebase/firestore';
 
-type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'user_dashboard' | 'orders' | 'admin_login' | 'auth';
+type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'user_dashboard' | 'orders' | 'admin_login' | 'auth' | 'affiliate_join' | 'affiliate_dashboard';
 
 interface Order {
   id: string;
@@ -20,6 +21,16 @@ interface Order {
   senderNumber?: string;
   fileName?: string;
   couponProvider?: string;
+  userId?: string;
+  affiliateId?: string | null;
+}
+
+interface AffiliateData {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  balance: number;
 }
 
 export default function App() {
@@ -43,6 +54,11 @@ export default function App() {
   const [adminError, setAdminError] = useState('');
   const [codeInputs, setCodeInputs] = useState<Record<string, string>>({});
 
+  // Affiliate State
+  const [affiliateData, setAffiliateData] = useState<AffiliateData | null>(null);
+  const [affiliateName, setAffiliateName] = useState('');
+  const [affiliatePhone, setAffiliatePhone] = useState('');
+
   // Orders State
   const [orders, setOrders] = useState<Order[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -54,6 +70,33 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authView, setAuthView] = useState<'options' | 'form'>('options');
+
+  // Track Referral
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refId = params.get('ref');
+    if (refId) {
+      localStorage.setItem('affiliate_ref', refId);
+    }
+  }, []);
+
+  // Fetch Affiliate Data
+  useEffect(() => {
+    if (user && user.uid) {
+      const q = query(collection(db, 'affiliates'), where('userId', '==', user.uid));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          setAffiliateData({ id: doc.id, ...doc.data() } as AffiliateData);
+        } else {
+          setAffiliateData(null);
+        }
+      });
+      return () => unsubscribe();
+    } else {
+      setAffiliateData(null);
+    }
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -186,6 +229,8 @@ export default function App() {
     setCurrentScreen('success');
     
     try {
+      const affiliateRefId = localStorage.getItem('affiliate_ref');
+
       await addDoc(collection(db, 'orders'), {
         userId: user.uid,
         displayId: `طلب #${Math.floor(1000 + Math.random() * 9000)}`,
@@ -194,11 +239,30 @@ export default function App() {
         senderNumber,
         fileName,
         couponProvider,
+        affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
       });
     } catch (e) {
       console.error("Error adding document: ", e);
       alert("حدث خطأ أثناء الإرسال");
+    }
+  };
+
+  const handleJoinAffiliate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !affiliateName || !affiliatePhone) return;
+    try {
+      await addDoc(collection(db, 'affiliates'), {
+        userId: user.uid,
+        name: affiliateName,
+        phone: affiliatePhone,
+        balance: 0,
+        createdAt: serverTimestamp()
+      });
+      setCurrentScreen('affiliate_dashboard');
+    } catch (e) {
+      console.error(e);
+      alert('حدث خطأ أثناء الانضمام. يرجى المحاولة مرة أخرى.');
     }
   };
 
@@ -208,6 +272,10 @@ export default function App() {
       alert('يجب إدخال كود القسيمة أولاً قبل الموافقة.');
       return;
     }
+
+    // Find if the order has an affiliate
+    const orderToApprove = orders.find(o => o.id === id);
+
     try {
       await updateDoc(doc(db, 'orders', id), {
         status: 'approved',
@@ -215,6 +283,19 @@ export default function App() {
         code: codeToAssign,
         updatedAt: serverTimestamp()
       });
+
+      if (orderToApprove && orderToApprove.affiliateId) {
+        // Query the affiliate doc
+        const affQuery = query(collection(db, 'affiliates'), where('userId', '==', orderToApprove.affiliateId));
+        const affSnap = await getDocs(affQuery);
+        if (!affSnap.empty) {
+          const affDocRef = doc(db, 'affiliates', affSnap.docs[0].id);
+          await updateDoc(affDocRef, {
+            balance: increment(25)
+          });
+        }
+      }
+
       alert('تم قبول الطلب بنجاح');
     } catch(e: any) {
       console.error(e);
@@ -391,6 +472,51 @@ export default function App() {
                     🇪🇬 محللين مصريين
                   </span>
                   <div className="h-px bg-slate-800 flex-1"></div>
+                </div>
+
+                <div className="mt-6 flex justify-center w-full">
+                  <a 
+                    href="https://wa.me/201080379299" 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto relative group overflow-hidden bg-slate-900 border border-slate-700/50 p-4 rounded-2xl flex items-center gap-4 transition-all hover:bg-slate-800 hover:border-emerald-500/50 shadow-lg hover:shadow-emerald-500/10"
+                  >
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 blur-2xl rounded-full -translate-y-1/2 translate-x-1/4"></div>
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                      <Headset size={24} />
+                    </div>
+                    <div className="text-right">
+                      <h4 className="text-emerald-400 font-bold text-sm sm:text-base mb-0.5">خدمة العملاء والدعم</h4>
+                      <p className="text-slate-300 font-medium text-[11px] sm:text-xs leading-relaxed max-w-[260px]">
+                        اضغط هنا للتواصل مع خدمة العملاء في حال خسرت 2 قسيمة لاسترجاع الخسارة
+                      </p>
+                    </div>
+                  </a>
+                </div>
+
+                <div className="mt-4 flex justify-center w-full">
+                  <button 
+                    onClick={() => {
+                      if (!user) {
+                        setShowLoginPrompt(true);
+                      } else if (affiliateData) {
+                        setCurrentScreen('affiliate_dashboard');
+                      } else {
+                        setCurrentScreen('affiliate_join');
+                      }
+                    }}
+                    className="w-full sm:w-auto relative group overflow-hidden bg-gradient-to-r from-amber-500 to-yellow-500 p-4 rounded-2xl flex items-center justify-center gap-3 transition-transform hover:scale-[1.02] active:scale-95 shadow-xl shadow-amber-500/20"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-900/20 flex items-center justify-center shrink-0">
+                      <Briefcase size={22} className="text-slate-900" />
+                    </div>
+                    <div className="text-right">
+                      <h4 className="text-slate-950 font-black text-sm sm:text-base mb-0.5">اعمل لدينا</h4>
+                      <p className="text-slate-800 font-bold text-[10px] sm:text-xs">
+                        انضم كشريك واربح 25 جنيه عن كل عملية
+                      </p>
+                    </div>
+                  </button>
                 </div>
               </motion.div>
             )}
@@ -779,26 +905,32 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="p-6 flex flex-col justify-center min-h-[500px]"
+                className="p-4 flex flex-col justify-center min-h-[500px]"
               >
-                <div className="bg-slate-900 border border-slate-800 rounded-[2rem] p-6 shadow-2xl w-full max-w-sm mx-auto relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full translate-x-1/4 -translate-y-1/2" />
+                <div className="bg-slate-900 border border-emerald-500/20 rounded-[2rem] p-6 sm:p-8 shadow-2xl shadow-emerald-500/5 w-full max-w-sm mx-auto relative overflow-hidden flex flex-col items-center">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/10 blur-3xl rounded-full translate-x-1/4 -translate-y-1/4 pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-500/10 blur-3xl rounded-full -translate-x-1/4 translate-y-1/4 pointer-events-none" />
                   
-                  <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mx-auto mb-6 relative z-10">
-                    <User size={32} className="text-amber-50" />
+                  <div className="w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-[1.5rem] flex items-center justify-center shadow-inner border mx-auto mb-6 relative z-10 border-slate-700">
+                    <Trophy size={40} className="text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
                   </div>
 
                   {authView === 'options' ? (
-                    <div className="flex flex-col gap-4 relative z-10 w-full mt-4">
+                    <div className="flex flex-col gap-4 relative z-10 w-full mt-2">
+                       <div className="text-center mb-6">
+                        <h2 className="text-2xl font-black text-white mb-1">تسجيل الدخول</h2>
+                        <p className="text-slate-400 text-xs">مرحباً بك في منصة التوقعات الرياضية الأقوى</p>
+                       </div>
+
                       <button 
                         onClick={() => {
                           setIsSignUp(true);
                           setAuthView('form');
                           setAuthError('');
                         }}
-                        className="w-full py-4 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg text-lg flex items-center justify-center gap-2"
+                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] text-[15px] flex items-center justify-center gap-2 group"
                       >
-                         إنشاء حساب
+                         إنشاء حساب جديد
                       </button>
 
                       <button 
@@ -807,14 +939,14 @@ export default function App() {
                           setAuthView('form');
                           setAuthError('');
                         }}
-                        className="w-full py-4 bg-slate-800 text-amber-500 font-bold rounded-2xl border border-amber-500/30 hover:bg-slate-700 transition-all text-lg flex items-center justify-center gap-2 mt-2"
+                        className="w-full py-4 bg-slate-800 text-slate-200 font-bold rounded-2xl border border-slate-700 hover:bg-slate-700 hover:border-slate-500 transition-all text-[15px] flex items-center justify-center gap-2"
                       >
                          تسجيل الدخول
                       </button>
 
-                      <div className="flex items-center gap-2 my-2">
+                      <div className="flex items-center gap-4 my-2">
                          <div className="h-px bg-slate-800 flex-1"></div>
-                         <span className="text-xs text-slate-500 font-bold">أو</span>
+                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">أو</span>
                          <div className="h-px bg-slate-800 flex-1"></div>
                       </div>
 
@@ -823,85 +955,206 @@ export default function App() {
                           handleSignIn();
                           setCurrentScreen('home');
                         }}
-                        className="w-full py-4 bg-white hover:bg-gray-100 text-slate-900 font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-md text-lg"
+                        className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors border border-slate-700/50 hover:border-slate-500/50 text-[15px]"
                       >
-                        <svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                        <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
                           <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
                           <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
                           <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
                           <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
                         </svg>
-                        ربط جوجل
+                        المتابعة بحساب جوجل
                       </button>
                     </div>
                   ) : (
-                    <>
+                    <div className="w-full relative z-10">
                       <button 
                         onClick={() => setAuthView('options')} 
-                        className="absolute top-6 left-6 text-slate-400 hover:text-white z-20 bg-slate-800 p-2 rounded-full"
+                        className="absolute -top-24 right-0 text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-2 rounded-full border border-slate-700/50"
                       >
-                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                       </button>
                       
-                      <h2 className="text-2xl font-black text-center mb-6 text-white relative z-10">
-                        {isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
-                      </h2>
+                      <div className="text-center mb-6">
+                        <h2 className="text-xl font-black text-white px-8 mb-1">
+                          {isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
+                        </h2>
+                        <p className="text-xs text-slate-400">
+                            {isSignUp ? 'أدخل بياناتك لإنشاء حسابك الآن' : 'أدخل بياناتك للوصول إلى حسابك'}
+                        </p>
+                      </div>
 
-                      <form onSubmit={handleEmailAuth} className="flex flex-col gap-4 relative z-10" autoComplete="off">
+                      <form onSubmit={handleEmailAuth} className="flex flex-col gap-4" autoComplete="off">
                         {authError && (
-                          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl text-center">
-                            {authError}
+                          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl text-center flex items-center justify-center gap-2">
+                            <AlertCircle size={14} />
+                            <span>{authError}</span>
                           </div>
                         )}
                         
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-400">اسم المستخدم (أو البريد)</label>
-                          <input 
-                            type="text" 
-                            value={authIdentifier}
-                            onChange={(e) => setAuthIdentifier(e.target.value)}
-                            placeholder="أدخل اسمك أو بريدك"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
-                            required
-                            autoComplete="off"
-                          />
+                          <label className="text-xs font-bold text-slate-300 pr-1">اسم المستخدم (أو البريد)</label>
+                          <div className="relative">
+                            <input 
+                              type="text" 
+                              value={authIdentifier}
+                              onChange={(e) => setAuthIdentifier(e.target.value)}
+                              placeholder="أدخل اسمك أو بريدك"
+                              className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 pr-11 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                              required
+                              autoComplete="off"
+                            />
+                            <User size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                          </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-400">كلمة المرور</label>
-                          <input 
-                            type="password" 
-                            value={authPassword}
-                            onChange={(e) => setAuthPassword(e.target.value)}
-                            placeholder="••••••••"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 transition-colors"
-                            required
-                            autoComplete="new-password"
-                          />
+                          <label className="text-xs font-bold text-slate-300 pr-1">كلمة المرور</label>
+                          <div className="relative">
+                            <input 
+                              type="password" 
+                              value={authPassword}
+                              onChange={(e) => setAuthPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 pr-11 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
+                              required
+                              autoComplete="new-password"
+                            />
+                            <Lock size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                          </div>
                         </div>
 
                         <button 
-                          type="submit"
-                          className="w-full mt-2 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-lg"
+                          type="submit" 
+                          className="w-full py-4 mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_25px_rgba(16,185,129,0.4)] text-[15px] flex items-center justify-center gap-2"
                         >
-                          {isSignUp ? 'إنشاء الحساب' : 'دخول'}
+                          {isSignUp ? 'إنشاء الحساب' : 'تسجيل الدخول'}
                         </button>
                       </form>
                       
-                      <p className="text-center mt-6 text-sm text-slate-400 relative z-10">
+                      <p className="text-center mt-5 text-xs font-medium text-slate-400 relative z-10">
                         {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟'}{' '}
                         <button 
                           onClick={() => {
                             setIsSignUp(!isSignUp);
                             setAuthError('');
                           }}
-                          className="text-amber-500 font-bold hover:underline"
+                          className="text-emerald-400 font-bold hover:underline"
                         >
                           {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب'}
                         </button>
                       </p>
-                    </>
+                    </div>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {/* --- AFFILIATE JOIN SCREEN --- */}
+            {currentScreen === 'affiliate_join' && (
+              <motion.div 
+                key="affiliate_join"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="p-4 flex flex-col justify-center min-h-[500px]"
+              >
+                <div className="bg-slate-900 border border-amber-500/20 rounded-[2rem] p-6 sm:p-8 shadow-2xl w-full max-w-sm mx-auto flex flex-col items-center">
+                  <div className="w-20 h-20 bg-gradient-to-br from-amber-500/10 to-transparent rounded-[1.5rem] flex items-center justify-center border mx-auto mb-6 border-amber-500/40">
+                    <Briefcase size={40} className="text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                  </div>
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-black text-white mb-2">اعمل معنا</h2>
+                    <p className="text-slate-400 text-xs leading-relaxed">
+                      انضم كشريك لمنصتنا واربح <span className="text-amber-500 font-bold">25 جنيه</span> عن كل عملية تتم عن طريق رابطك. سجل الآن!
+                    </p>
+                  </div>
+                  <form onSubmit={handleJoinAffiliate} className="w-full flex flex-col gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 pr-1">الاسم الحقيقي (ثلاثي)</label>
+                      <input 
+                        type="text" 
+                        value={affiliateName}
+                        onChange={(e) => setAffiliateName(e.target.value)}
+                        placeholder="أدخل اسمك الحقيقي"
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all text-sm"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300 pr-1">رقم الهاتف (كاش)</label>
+                      <input 
+                        type="tel" 
+                        value={affiliatePhone}
+                        onChange={(e) => setAffiliatePhone(e.target.value)}
+                        placeholder="أدخل رقم الكاش الخاص بك"
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all text-sm"
+                        required
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      className="w-full py-4 mt-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_25px_rgba(245,158,11,0.4)] text-[15px] flex items-center justify-center gap-2"
+                    >
+                      تسجيل كشريك
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentScreen('home')}
+                      className="text-slate-400 text-xs font-bold hover:text-white transition-colors"
+                    >
+                      إلغاء والعودة للرئيسية
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            )}
+
+            {/* --- AFFILIATE DASHBOARD SCREEN --- */}
+            {currentScreen === 'affiliate_dashboard' && (
+              <motion.div 
+                key="affiliate_dashboard"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="p-4 pb-20 items-center justify-center min-h-full flex"
+              >
+                <div className="w-full max-w-sm flex flex-col gap-5">
+                  <div className="text-center mb-2">
+                    <h2 className="text-2xl font-black text-white">لوحة الشريك</h2>
+                    <p className="text-slate-400 text-sm mt-1">
+                      مرحباً <span className="text-amber-500 font-bold">{affiliateData?.name}</span>
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-emerald-500/30 p-6 rounded-[2rem] shadow-xl text-center">
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-[1rem] flex flex-col items-center justify-center border mx-auto mb-4 border-emerald-500/30">
+                      <Wallet size={30} className="text-emerald-400" />
+                    </div>
+                    <h4 className="text-slate-400 text-sm font-bold mb-1">رصيدي القابل للسحب</h4>
+                    <p className="text-4xl font-black text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+                      {affiliateData?.balance} <span className="text-lg text-emerald-400">ج.م</span>
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] shadow-xl">
+                    <div className="flex flex-col gap-3">
+                      <p className="text-slate-300 text-sm font-medium text-center leading-relaxed">
+                        احصل على رابط المشاركة الخاص بك واربح مبلغ <span className="text-amber-500 font-bold">25 جنيه</span> من كل عملية تتم من خلالك
+                      </p>
+                      <button 
+                        onClick={() => {
+                          const link = `${window.location.origin}/?ref=${user?.uid || ''}`;
+                          navigator.clipboard.writeText(link);
+                          alert('تم نسخ رابط المشاركة الخاص بك بنجاح!');
+                        }}
+                        className="w-full py-4 mt-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_25px_rgba(245,158,11,0.4)] text-[15px] flex items-center justify-center gap-2"
+                      >
+                        <LinkIcon size={20} />
+                        انسخ رابط المشاركة
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
