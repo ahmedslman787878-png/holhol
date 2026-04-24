@@ -19,6 +19,7 @@ interface Order {
   code?: string;
   senderNumber?: string;
   fileName?: string;
+  couponProvider?: string;
 }
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
   // Payment State
   const [senderNumber, setSenderNumber] = useState('');
   const [fileName, setFileName] = useState('');
+  const [couponProvider, setCouponProvider] = useState('1xBet');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Admin State
@@ -191,6 +193,7 @@ export default function App() {
         text: 'قيد المراجعة',
         senderNumber,
         fileName,
+        couponProvider,
         createdAt: serverTimestamp()
       });
     } catch (e) {
@@ -447,6 +450,20 @@ export default function App() {
                     </div>
 
                     <div className="space-y-3">
+                      <label className="text-sm font-bold text-slate-300">اختر المنصة لإرسال كود القسيمة:</label>
+                      <select 
+                        value={couponProvider}
+                        onChange={(e) => setCouponProvider(e.target.value)}
+                        dir="ltr"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-emerald-400 focus:outline-none focus:border-emerald-500 text-center appearance-none"
+                      >
+                        <option value="1xBet">1xBet</option>
+                        <option value="MelBet">MelBet</option>
+                        <option value="linebet">linebet</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-3">
                       <label className="text-sm font-bold text-slate-300">إثبات الدفع (إسكرين شوت):</label>
                       <div className="mt-1">
                         <input 
@@ -592,7 +609,8 @@ export default function App() {
                      <div key={order.id} className="bg-slate-900 rounded-[2rem] p-5 border border-slate-800 shadow-lg flex flex-col gap-3">
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-bold text-emerald-400">{order.displayId}</span>
-                          <span className="text-slate-400 text-xs">{order.fileName}</span>
+                          <span className="text-amber-500 text-xs font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">{order.couponProvider || '1xBet'}</span>
+                          <span className="text-slate-400 text-xs truncate max-w-[100px]">{order.fileName}</span>
                         </div>
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center font-mono break-all font-bold tracking-widest text-lg">
                           {order.senderNumber}
@@ -699,7 +717,12 @@ export default function App() {
                       }`}></div>
 
                       <div className="flex justify-between items-center pr-2">
-                        <span className="text-sm font-bold text-slate-300">{order.displayId}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-sm font-bold text-slate-300">{order.displayId}</span>
+                          {order.couponProvider && (
+                            <span className="text-amber-500 text-[10px] font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 w-max">{order.couponProvider}</span>
+                          )}
+                        </div>
                         <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-lg border ${
                           order.status === 'pending' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' : 
                           order.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
