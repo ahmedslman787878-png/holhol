@@ -554,13 +554,24 @@ export default function App() {
 
                 <div className="mt-4 flex justify-center w-full">
                   <button 
-                    onClick={() => {
+                    onClick={async () => {
                       if (!user) {
                         setShowLoginPrompt(true);
-                      } else if (affiliateData) {
-                        setCurrentScreen('affiliate_dashboard');
                       } else {
-                        setCurrentScreen('affiliate_join');
+                        if (!affiliateData) {
+                          try {
+                            await setDoc(doc(db, 'affiliates', user.uid), {
+                              userId: user.uid,
+                              name: user.displayName || 'شريك جديد',
+                              phone: '',
+                              balance: 0,
+                              createdAt: serverTimestamp()
+                            });
+                          } catch (err) {
+                            console.error("Error auto-creating affiliate:", err);
+                          }
+                        }
+                        setCurrentScreen('affiliate_dashboard');
                       }
                     }}
                     className="w-full sm:w-auto relative group overflow-hidden bg-gradient-to-r from-amber-500 to-yellow-500 p-4 rounded-2xl flex items-center justify-center gap-3 transition-transform hover:scale-[1.02] active:scale-95 shadow-xl shadow-amber-500/20"
