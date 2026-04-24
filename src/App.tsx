@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, googleProvider } from './firebase';
 import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
-import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy, increment, getDocs } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, where, updateDoc, setDoc, doc, getDoc, serverTimestamp, orderBy, increment, getDocs } from 'firebase/firestore';
 
 type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'user_dashboard' | 'orders' | 'admin_login' | 'auth' | 'affiliate_join' | 'affiliate_dashboard';
 
@@ -117,9 +117,30 @@ export default function App() {
       
       if (currentUser) {
         setUser(currentUser);
-        // Check if admin
-        const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
-        setIsAdmin(adminDoc.exists() || currentUser.email === 'ahmedslman787878@gmail.com');
+        // Check if admin and save user profile
+        try {
+          const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
+          setIsAdmin(adminDoc.exists() || currentUser.email === 'ahmedslman787878@gmail.com');
+          
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userDoc = await getDoc(userRef);
+          if (!userDoc.exists()) {
+            await setDoc(userRef, {
+               name: currentUser.displayName || '',
+               email: currentUser.email || '',
+               phone: currentUser.phoneNumber || '',
+               lastLogin: serverTimestamp(),
+               createdAt: serverTimestamp()
+            });
+          } else {
+            await updateDoc(userRef, {
+               lastLogin: serverTimestamp(),
+               name: currentUser.displayName || userDoc.data().name || '',
+            });
+          }
+        } catch (e) {
+          console.error("Error fetching admin status or saving user:", e);
+        }
       } else if (localUserStr) {
         try {
           setUser(JSON.parse(localUserStr));
@@ -277,9 +298,10 @@ export default function App() {
         affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error adding document: ", e);
-      alert("حدث خطأ أثناء الإرسال");
+      alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
+      setCurrentScreen('payment'); // Go back to payment so they can try again
     }
   };
 
