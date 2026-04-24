@@ -87,11 +87,10 @@ export default function App() {
   // Fetch Affiliate Data
   useEffect(() => {
     if (user && user.uid) {
-      const q = query(collection(db, 'affiliates'), where('userId', '==', user.uid));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
-          setAffiliateData({ id: doc.id, ...doc.data() } as AffiliateData);
+      const docRef = doc(db, 'affiliates', user.uid);
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setAffiliateData({ id: docSnap.id, ...docSnap.data() } as AffiliateData);
         } else {
           setAffiliateData(null);
         }
@@ -295,7 +294,7 @@ export default function App() {
     e.preventDefault();
     if (!user || !affiliateName || !affiliatePhone) return;
     try {
-      await addDoc(collection(db, 'affiliates'), {
+      await setDoc(doc(db, 'affiliates', user.uid), {
         userId: user.uid,
         name: affiliateName,
         phone: affiliatePhone,
@@ -303,9 +302,9 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       setCurrentScreen('affiliate_dashboard');
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('حدث خطأ أثناء الانضمام. يرجى المحاولة مرة أخرى.');
+      alert('حدث خطأ أثناء الانضمام: ' + (e.message || ''));
     }
   };
 
@@ -328,7 +327,7 @@ export default function App() {
       });
 
       if (orderToApprove && orderToApprove.affiliateId) {
-        // Query the affiliate doc
+        // Query the affiliate doc (support both new doc ID format and old format)
         const affQuery = query(collection(db, 'affiliates'), where('userId', '==', orderToApprove.affiliateId));
         const affSnap = await getDocs(affQuery);
         if (!affSnap.empty) {
@@ -1172,7 +1171,7 @@ export default function App() {
                   <div className="text-center mb-2">
                     <h2 className="text-2xl font-black text-white">لوحة الشريك</h2>
                     <p className="text-slate-400 text-sm mt-1">
-                      مرحباً <span className="text-amber-500 font-bold">{affiliateData?.name}</span>
+                      مرحباً <span className="text-amber-500 font-bold">{affiliateData?.name || user?.displayName || 'شريكنا العزيز'}</span>
                     </p>
                   </div>
 
