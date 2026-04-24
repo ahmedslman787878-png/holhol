@@ -156,8 +156,24 @@ export default function App() {
   const handleSignIn = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+      setCurrentScreen('home');
+    } catch (error: any) {
       console.error("Sign in failed:", error);
+      let errorMsg = error.message;
+      if (error.code === 'auth/unauthorized-domain') {
+        errorMsg = 'النطاق الحالي غير مصرح له بتسجيل الدخول. تأكد من إضافة النطاق في إعدادات Firebase Authentication.';
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errorMsg = 'تم إغلاق نافذة تسجيل الدخول قبل اكتمال العملية.';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMsg = 'تم حظر النافذة المنبثقة بواسطة المتصفح. يرجى السماح بالنوافذ المنبثقة.';
+      } else if (error.message.includes('Cross-Origin')) {
+        errorMsg = 'حدث خطأ متعلق بـ Cross-Origin. يرجى محاولة فتح التطبيق في نافذة جديدة وليس داخل إطار (iframe).';
+      }
+
+      setAuthError('Error: ' + errorMsg);
+      // Give a visual alert so it's impossible to miss on mobile.
+      alert('خطأ في تسجيل الدخول:\\n' + errorMsg);
+      setAuthView('options');
     }
   };
 
@@ -922,6 +938,13 @@ export default function App() {
                         <p className="text-slate-400 text-xs">مرحباً بك في منصة التوقعات الرياضية الأقوى</p>
                        </div>
 
+                       {authError && (
+                          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl text-center flex items-center justify-center gap-2 mb-2">
+                            <AlertCircle size={14} />
+                            <span>{authError}</span>
+                          </div>
+                        )}
+
                       <button 
                         onClick={() => {
                           setIsSignUp(true);
@@ -953,7 +976,6 @@ export default function App() {
                       <button 
                         onClick={() => {
                           handleSignIn();
-                          setCurrentScreen('home');
                         }}
                         className="w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl flex items-center justify-center gap-3 transition-colors border border-slate-700/50 hover:border-slate-500/50 text-[15px]"
                       >
