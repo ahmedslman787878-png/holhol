@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, googleProvider } from './firebase';
-import { signInWithPopup, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, User as FirebaseUser } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, where, updateDoc, doc, getDoc, serverTimestamp, orderBy, increment, getDocs } from 'firebase/firestore';
 
 type Screen = 'home' | 'payment' | 'success' | 'admin_dashboard' | 'user_dashboard' | 'orders' | 'admin_login' | 'auth' | 'affiliate_join' | 'affiliate_dashboard';
@@ -42,6 +42,19 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLocalAdmin, setIsLocalAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          setCurrentScreen('home');
+        }
+      })
+      .catch((error) => {
+        console.error("Redirect auth error:", error);
+        setAuthError('خطأ في تحويل تسجيل الدخول: ' + error.message);
+      });
+  }, []);
 
   // Payment State
   const [senderNumber, setSenderNumber] = useState('');
@@ -155,8 +168,14 @@ export default function App() {
 
   const handleSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      setCurrentScreen('home');
+      if (window.self !== window.top) {
+        // We are in an iframe (like AI Studio preview), use popup
+        await signInWithPopup(auth, googleProvider);
+        setCurrentScreen('home');
+      } else {
+        // We are on a normal website/mobile, use redirect to avoid popup blockers
+        await signInWithRedirect(auth, googleProvider);
+      }
     } catch (error: any) {
       console.error("Sign in failed:", error);
       let errorMsg = error.message;
