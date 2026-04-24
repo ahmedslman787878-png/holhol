@@ -44,16 +44,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          setCurrentScreen('home');
-        }
-      })
-      .catch((error) => {
-        console.error("Redirect auth error:", error);
-        setAuthError('خطأ في تحويل تسجيل الدخول: ' + error.message);
-      });
+    // getRedirectResult is removed as we now use popup exclusively
   }, []);
 
   // Payment State
@@ -189,14 +180,9 @@ export default function App() {
 
   const handleSignIn = async () => {
     try {
-      if (window.self !== window.top) {
-        // We are in an iframe (like AI Studio preview), use popup
-        await signInWithPopup(auth, googleProvider);
-        setCurrentScreen('home');
-      } else {
-        // We are on a normal website/mobile, use redirect to avoid popup blockers
-        await signInWithRedirect(auth, googleProvider);
-      }
+      await signInWithPopup(auth, googleProvider);
+      setCurrentScreen('home');
+      alert('تم تسجيل الدخول بنجاح');
     } catch (error: any) {
       console.error("Sign in failed:", error);
       let errorMsg = error.message;
