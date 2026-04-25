@@ -114,19 +114,29 @@ export default function App() {
           
           const userRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userRef);
+          
+          const storedRefId = localStorage.getItem('affiliate_ref');
+
           if (!userDoc.exists()) {
             await setDoc(userRef, {
                name: currentUser.displayName || '',
                email: currentUser.email || '',
                phone: currentUser.phoneNumber || '',
+               referredBy: storedRefId || null,
                lastLogin: serverTimestamp(),
                createdAt: serverTimestamp()
             });
           } else {
-            await updateDoc(userRef, {
+            // Update lastLogin, but preserve referredBy if it wasn't set and we now have one
+            const currentData = userDoc.data();
+            const updates: any = {
                lastLogin: serverTimestamp(),
-               name: currentUser.displayName || userDoc.data().name || '',
-            });
+               name: currentUser.displayName || currentData.name || '',
+            };
+            if (!currentData.referredBy && storedRefId) {
+               updates.referredBy = storedRefId;
+            }
+            await updateDoc(userRef, updates);
           }
         } catch (e) {
           console.error("Error fetching admin status or saving user:", e);
@@ -157,9 +167,11 @@ export default function App() {
     let q;
     
     if (isAdmin || isLocalAdmin) {
-      q = query(ordersRef, orderBy('createdAt', 'desc'));
+      q = query(ordersRef);
     } else if (user) {
-      q = query(ordersRef, where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+      // Removing orderBy from the query to avoid needing a Firestore composite index.
+      // We will sort the results in JavaScript instead.
+      q = query(ordersRef, where('userId', '==', user.uid));
     } else {
       return;
     }
@@ -169,9 +181,18 @@ export default function App() {
         id: doc.id,
         ...doc.data()
       })) as Order[];
+      
+      // Sort in JS to avoid compound or standalone index requirements
+      fetchedOrders.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
+
       setOrders(fetchedOrders);
     }, (error) => {
       console.error("Firestore error:", error);
+      alert("خطأ في جلب الطلبات: " + error.message);
     });
 
     return () => unsubscribe();
@@ -267,8 +288,6 @@ export default function App() {
     }
     if (!user) return;
 
-    setCurrentScreen('success');
-    
     try {
       const affiliateRefId = localStorage.getItem('affiliate_ref');
 
@@ -283,10 +302,11 @@ export default function App() {
         affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
       });
+      
+      setCurrentScreen('success');
     } catch (e: any) {
       console.error("Error adding document: ", e);
       alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
-      setCurrentScreen('payment'); // Go back to payment so they can try again
     }
   };
 
