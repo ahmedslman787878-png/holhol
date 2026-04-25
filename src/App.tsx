@@ -243,10 +243,6 @@ export default function App() {
   };
 
   const handlePaymentSubmit = async () => {
-    if (!senderNumber) {
-      alert('يرجى إدخال رقم المرسل.');
-      return;
-    }
     if (!user) {
       alert('يجب تسجيل الدخول لإتمام عملية الدفع');
       return;
@@ -255,7 +251,7 @@ export default function App() {
     try {
       const affiliateRefId = localStorage.getItem('affiliate_ref');
 
-      await addDoc(collection(db, 'orders'), {
+      addDoc(collection(db, 'orders'), {
         userId: user.uid,
         displayId: `طلب #${Math.floor(1000 + Math.random() * 9000)}`,
         status: 'pending',
@@ -264,13 +260,15 @@ export default function App() {
         couponProvider,
         affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
+      }).catch(e => {
+        console.error("Error syncing document: ", e);
       });
       
       alert('تم ارسال الطلب بنجاح');
       setCurrentScreen('orders');
     } catch (e: any) {
-      console.error("Error syncing document: ", e);
-      alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
+      console.error("Error setting up document: ", e);
+      alert("حدث خطأ أثناء إعداد الطلب: " + (e.message || ''));
     }
   };
 
@@ -411,7 +409,7 @@ export default function App() {
               <Lock size={16} />
             </button>
             
-            {isAdmin && (
+            {(isAdmin || isLocalAdmin) && (
                <button 
                 onClick={() => setCurrentScreen('admin_dashboard')}
                 className="flex items-center justify-center p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 rounded-full text-amber-500 transition-colors shrink-0"
@@ -1133,8 +1131,8 @@ export default function App() {
               label="أنا" 
               isActive={currentScreen === 'admin_dashboard' || currentScreen === 'user_dashboard'} 
               onClick={() => {
-                 if (!user) setCurrentScreen('auth');
-                 else if (isAdmin || isLocalAdmin) setCurrentScreen('admin_dashboard');
+                 if (isAdmin || isLocalAdmin) setCurrentScreen('admin_dashboard');
+                 else if (!user) setCurrentScreen('auth');
                  else setCurrentScreen('user_dashboard');
               }} 
             />
