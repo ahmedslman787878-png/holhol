@@ -255,12 +255,17 @@ export default function App() {
       alert('يرجى إدخال رقم المرسل ورفع صورة الإيصال.');
       return;
     }
-    if (!user) return;
+    if (!user) {
+      alert('يجب تسجيل الدخول لإتمام عملية الدفع');
+      return;
+    }
 
     try {
       const affiliateRefId = localStorage.getItem('affiliate_ref');
 
-      await addDoc(collection(db, 'orders'), {
+      // We don't await addDoc so the UI responds immediately even if the user is offline 
+      // or if there are websocket issues. Firestore will sync it in the background.
+      addDoc(collection(db, 'orders'), {
         userId: user.uid,
         displayId: `طلب #${Math.floor(1000 + Math.random() * 9000)}`,
         status: 'pending',
@@ -270,13 +275,15 @@ export default function App() {
         couponProvider,
         affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
+      }).catch(e => {
+        console.error("Error syncing document: ", e);
       });
       
       alert('تم ارسال الطلب بنجاح');
       setCurrentScreen('orders');
     } catch (e: any) {
-      console.error("Error adding document: ", e);
-      alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
+      console.error("Error setting up document: ", e);
+      alert("حدث خطأ أثناء إعداد الطلب");
     }
   };
 
