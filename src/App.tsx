@@ -23,6 +23,7 @@ interface Order {
   couponProvider?: string;
   userId?: string;
   affiliateId?: string | null;
+  createdAt?: any;
 }
 
 interface AffiliateData {
@@ -103,14 +104,18 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      const localUserStr = localStorage.getItem('temp_user');
-      
       if (currentUser) {
         setUser(currentUser);
         // Check if admin and save user profile
+        // Set admin immediately by email
+        let defaultAdmin = currentUser.email === 'ahmedslman787878@gmail.com';
+        setIsAdmin(defaultAdmin);
+        
         try {
           const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
-          setIsAdmin(adminDoc.exists() || currentUser.email === 'ahmedslman787878@gmail.com');
+          if (adminDoc.exists()) {
+             setIsAdmin(true);
+          }
           
           const userRef = doc(db, 'users', currentUser.uid);
           const userDoc = await getDoc(userRef);
@@ -138,19 +143,17 @@ export default function App() {
             }
             await updateDoc(userRef, updates);
           }
-        } catch (e) {
-          console.error("Error fetching admin status or saving user:", e);
+        } catch (e: any) {
+          if (e.message && e.message.includes('client is offline')) {
+             console.warn("Firestore is offline. Operating with limited capabilities.");
+          } else {
+             console.error("Error fetching admin status or saving user:", e);
+          }
         }
-      } else if (localUserStr) {
-        try {
-          setUser(JSON.parse(localUserStr));
-        } catch {
-          setUser(null);
-        }
-        setIsAdmin(false);
       } else {
         setUser(null);
         setIsAdmin(false);
+        localStorage.removeItem('temp_user'); // Clean up any old garbage payload
       }
       setAuthLoading(false);
     });
@@ -223,40 +226,6 @@ export default function App() {
     }
   };
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    if (!authIdentifier || !authPassword) {
-      setAuthError('يرجى ملء جميع الحقول');
-      return;
-    }
-    
-    // Auto-format standard usernames to a dummy email for Local requirement
-    const finalEmail = authIdentifier.includes('@') ? authIdentifier : `${authIdentifier.trim()}@sportspredict.app`;
-
-    try {
-      // Mock / Temporary Info Auth as requested
-      const tempUser = {
-        uid: 'local_' + authIdentifier.replace(/[^a-zA-Z0-9]/g, '_') + '_' + Date.now(),
-        email: finalEmail,
-        displayName: authIdentifier,
-        isAnonymous: false,
-      };
-
-      // Save to local storage for persistence
-      localStorage.setItem('temp_user', JSON.stringify(tempUser));
-      setUser(tempUser as FirebaseUser);
-      setIsAdmin(false); // Default to not admin for local temp
-      
-      setAuthIdentifier('');
-      setAuthPassword('');
-      setCurrentScreen('home');
-    } catch (error: any) {
-      console.error("Local Auth Error:", error);
-      setAuthError('حدث خطأ أثناء حفظ المعلومات المؤقتة.');
-    }
-  };
-
   const handleSignOut = () => {
     localStorage.removeItem('temp_user');
     signOut(auth);
@@ -303,7 +272,8 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       
-      setCurrentScreen('success');
+      alert('تم ارسال الطلب بنجاح');
+      setCurrentScreen('orders');
     } catch (e: any) {
       console.error("Error adding document: ", e);
       alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
@@ -1004,7 +974,6 @@ export default function App() {
                     <Trophy size={40} className="text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
                   </div>
 
-                  {authView === 'options' ? (
                     <div className="flex flex-col gap-4 relative z-10 w-full mt-2">
                        <div className="text-center mb-6">
                         <h2 className="text-2xl font-black text-white mb-1">تسجيل الدخول</h2>
@@ -1017,34 +986,6 @@ export default function App() {
                             <span>{authError}</span>
                           </div>
                         )}
-
-                      <button 
-                        onClick={() => {
-                          setIsSignUp(true);
-                          setAuthView('form');
-                          setAuthError('');
-                        }}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] text-[15px] flex items-center justify-center gap-2 group"
-                      >
-                         إنشاء حساب جديد
-                      </button>
-
-                      <button 
-                        onClick={() => {
-                          setIsSignUp(false);
-                          setAuthView('form');
-                          setAuthError('');
-                        }}
-                        className="w-full py-4 bg-slate-800 text-slate-200 font-bold rounded-2xl border border-slate-700 hover:bg-slate-700 hover:border-slate-500 transition-all text-[15px] flex items-center justify-center gap-2"
-                      >
-                         تسجيل الدخول
-                      </button>
-
-                      <div className="flex items-center gap-4 my-2">
-                         <div className="h-px bg-slate-800 flex-1"></div>
-                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">أو</span>
-                         <div className="h-px bg-slate-800 flex-1"></div>
-                      </div>
 
                       <button 
                         onClick={() => {
@@ -1061,86 +1002,6 @@ export default function App() {
                         المتابعة بحساب جوجل
                       </button>
                     </div>
-                  ) : (
-                    <div className="w-full relative z-10">
-                      <button 
-                        onClick={() => setAuthView('options')} 
-                        className="absolute -top-24 right-0 text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-2 rounded-full border border-slate-700/50"
-                      >
-                         <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                      </button>
-                      
-                      <div className="text-center mb-6">
-                        <h2 className="text-xl font-black text-white px-8 mb-1">
-                          {isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
-                        </h2>
-                        <p className="text-xs text-slate-400">
-                            {isSignUp ? 'أدخل بياناتك لإنشاء حسابك الآن' : 'أدخل بياناتك للوصول إلى حسابك'}
-                        </p>
-                      </div>
-
-                      <form onSubmit={handleEmailAuth} className="flex flex-col gap-4" autoComplete="off">
-                        {authError && (
-                          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl text-center flex items-center justify-center gap-2">
-                            <AlertCircle size={14} />
-                            <span>{authError}</span>
-                          </div>
-                        )}
-                        
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-300 pr-1">اسم المستخدم (أو البريد)</label>
-                          <div className="relative">
-                            <input 
-                              type="text" 
-                              value={authIdentifier}
-                              onChange={(e) => setAuthIdentifier(e.target.value)}
-                              placeholder="أدخل اسمك أو بريدك"
-                              className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 pr-11 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
-                              required
-                              autoComplete="off"
-                            />
-                            <User size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-300 pr-1">كلمة المرور</label>
-                          <div className="relative">
-                            <input 
-                              type="password" 
-                              value={authPassword}
-                              onChange={(e) => setAuthPassword(e.target.value)}
-                              placeholder="••••••••"
-                              className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 pr-11 text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all text-sm"
-                              required
-                              autoComplete="new-password"
-                            />
-                            <Lock size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" />
-                          </div>
-                        </div>
-
-                        <button 
-                          type="submit" 
-                          className="w-full py-4 mt-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_25px_rgba(16,185,129,0.4)] text-[15px] flex items-center justify-center gap-2"
-                        >
-                          {isSignUp ? 'إنشاء الحساب' : 'تسجيل الدخول'}
-                        </button>
-                      </form>
-                      
-                      <p className="text-center mt-5 text-xs font-medium text-slate-400 relative z-10">
-                        {isSignUp ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟'}{' '}
-                        <button 
-                          onClick={() => {
-                            setIsSignUp(!isSignUp);
-                            setAuthError('');
-                          }}
-                          className="text-emerald-400 font-bold hover:underline"
-                        >
-                          {isSignUp ? 'تسجيل الدخول' : 'إنشاء حساب'}
-                        </button>
-                      </p>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             )}
