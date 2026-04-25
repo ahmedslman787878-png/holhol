@@ -50,7 +50,6 @@ export default function App() {
 
   // Payment State
   const [senderNumber, setSenderNumber] = useState('');
-  const [fileName, setFileName] = useState('');
   const [couponProvider, setCouponProvider] = useState('1xBet');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -241,18 +240,11 @@ export default function App() {
     setSelectedPrediction(type);
     setCurrentScreen('payment');
     setSenderNumber('');
-    setFileName('');
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFileName(e.target.files[0].name);
-    }
   };
 
   const handlePaymentSubmit = async () => {
-    if (!senderNumber || !fileName) {
-      alert('يرجى إدخال رقم المرسل ورفع صورة الإيصال.');
+    if (!senderNumber) {
+      alert('يرجى إدخال رقم المرسل.');
       return;
     }
     if (!user) {
@@ -263,27 +255,22 @@ export default function App() {
     try {
       const affiliateRefId = localStorage.getItem('affiliate_ref');
 
-      // We don't await addDoc so the UI responds immediately even if the user is offline 
-      // or if there are websocket issues. Firestore will sync it in the background.
-      addDoc(collection(db, 'orders'), {
+      await addDoc(collection(db, 'orders'), {
         userId: user.uid,
         displayId: `طلب #${Math.floor(1000 + Math.random() * 9000)}`,
         status: 'pending',
         text: 'قيد المراجعة',
         senderNumber,
-        fileName,
         couponProvider,
         affiliateId: affiliateRefId || null,
         createdAt: serverTimestamp()
-      }).catch(e => {
-        console.error("Error syncing document: ", e);
       });
       
       alert('تم ارسال الطلب بنجاح');
       setCurrentScreen('orders');
     } catch (e: any) {
-      console.error("Error setting up document: ", e);
-      alert("حدث خطأ أثناء إعداد الطلب");
+      console.error("Error syncing document: ", e);
+      alert("حدث خطأ أثناء الإرسال: " + (e.message || ''));
     }
   };
 
@@ -655,26 +642,6 @@ export default function App() {
                       </select>
                     </div>
 
-                    <div className="space-y-3">
-                      <label className="text-sm font-bold text-slate-300">إثبات الدفع (إسكرين شوت):</label>
-                      <div className="mt-1">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          ref={fileInputRef} 
-                          onChange={handleFileUpload} 
-                          className="hidden" 
-                        />
-                        <button 
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`w-full bg-slate-950 border-2 ${fileName ? 'border-emerald-500' : 'border-dashed border-slate-800'} rounded-2xl p-4 flex items-center justify-center gap-3 text-slate-500 cursor-pointer hover:border-emerald-500/50 transition-colors`}
-                        >
-                          <Upload size={20} className={fileName ? "text-emerald-500" : ""} />
-                          <span className="text-sm">{fileName ? fileName : 'رفع صورة الإيصال'}</span>
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="bg-cyan-500/5 border border-cyan-500/20 p-4 rounded-2xl flex gap-3 text-sm text-cyan-200/80 leading-relaxed items-start">
                        <AlertCircle size={18} className="text-cyan-500 shrink-0 mt-0.5" />
                        <p>بعد التأكيد ستتم المراجعة وسيتم إرسال كود القسيمة إلى قسم <span className="font-bold text-white underline decoration-cyan-500">طلباتي</span>.</p>
@@ -802,7 +769,6 @@ export default function App() {
                         <div className="flex justify-between items-center text-sm">
                           <span className="font-bold text-emerald-400">{order.displayId}</span>
                           <span className="text-amber-500 text-xs font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">{order.couponProvider || '1xBet'}</span>
-                          <span className="text-slate-400 text-xs truncate max-w-[100px]">{order.fileName}</span>
                         </div>
                         <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center font-mono break-all font-bold tracking-widest text-lg">
                           {order.senderNumber}
@@ -827,11 +793,22 @@ export default function App() {
                  <div className="mt-8 space-y-4">
                    <h3 className="text-lg font-bold text-slate-400">الطلبات المكتملة:</h3>
                    {orders.filter(o => o.status !== 'pending').map((order) => (
-                     <div key={order.id} className="bg-slate-900/50 rounded-2xl p-4 border border-slate-800/50 flex justify-between items-center opacity-70">
-                       <span>{order.displayId}</span>
-                       <span className={`text-xs px-2 py-1 rounded-full ${order.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                         {order.text}
-                       </span>
+                     <div key={order.id} className="bg-slate-900/50 rounded-2xl p-4 border border-slate-800/50 flex flex-col gap-3 opacity-90">
+                       <div className="flex justify-between items-center">
+                         <span className="font-bold">{order.displayId}</span>
+                         <span className={`text-xs px-2 py-1 rounded-full font-bold ${order.status === 'approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                           {order.text}
+                         </span>
+                       </div>
+                       <div className="flex justify-between items-center text-xs text-slate-400 text-right">
+                         <div className="flex flex-col gap-1">
+                           <span>رقم المرسل: <span className="font-mono text-slate-300">{order.senderNumber}</span></span>
+                           {order.code && <span>الكود: <span className="font-mono text-amber-500 bg-amber-500/10 px-1 rounded">{order.code}</span></span>}
+                         </div>
+                         <div className="flex flex-col gap-1 text-left">
+                           {order.couponProvider && <span className="text-amber-500 bg-amber-500/10 px-2 rounded-full border border-amber-500/20 w-max self-end">{order.couponProvider}</span>}
+                         </div>
+                       </div>
                      </div>
                    ))}
                  </div>
